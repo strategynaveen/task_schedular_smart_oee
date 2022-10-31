@@ -584,6 +584,31 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
           val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
           cursor.execute(sql_query,val)
           db_instance.commit()
+      else:
+        db_instance = database_connection().connect_sql()
+        cursor = db_instance.cursor()
+        sql_query2 = "SELECT * FROM `pdm_events` WHERE `machine_id`= %s and `shift_date`<=%s ORDER BY r_no DESC LIMIT 1"
+        cursor.execute(sql_query2,(machine_id,shift_date,))
+        previous_data = cursor.fetchone()
+        if previous_data is not None:
+          previous_start = previous_data[9]
+          previous_end = previous_data[10]
+          previous_duration = previous_data[13]
+          previous_rno = previous_data[0]
+          previous_event_id = previous_data[1]
+          
+          duration = find_duration(shift_date,shift_date,previous_start,pdm_end_time)
+          end_time =pdm_end_time
+
+          sql_query1 = "UPDATE `pdm_events` SET `end_time`=%s,`duration`=%s WHERE `r_no`=%s"
+          cursor.execute(sql_query1,(end_time,duration,previous_rno,))
+          db_instance.commit()
+
+          # Update it in Reason mapping Table
+          if previous_data[12] != "Active":
+            sql_query2 = "UPDATE `pdm_downtime_reason_mapping` SET `end_time`=%s,`split_duration`=%s WHERE `machine_event_id`=%s"
+            cursor.execute(sql_query2,(end_time,duration,previous_event_id,))
+            db_instance.commit()
     print("Data stored in downtime event tables......")
   return
 
@@ -811,7 +836,7 @@ if __name__ == '__main__':
   shift_hours = [int(i.strftime("%H")) for i in shiftTimings]
   shift_min = [int(i.strftime("%M")) for i in shiftTimings]
   shift_list = getShiftList(shiftTimings)
-  hour = "2022-10-30 03:00:00"
+  hour = "2022-10-31 10:00:00"
   hour = datetime.datetime.strptime(hour, '%Y-%m-%d %H:%M:%S')
   #<---------------------- Loop break daywise ------------------------->
   while(True):
