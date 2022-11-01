@@ -41,9 +41,20 @@ class database_connection:
 
 #<------------------------------------------- Helper functions -------------------------------------------------->
 
+# <------------------------------------------Find the Device Status -------------------------------------------------------->
+
+def find_device_status(machine_gateway):
+  device_gateway = machine_gateway.split("/")
+  device_gateway = "/"+device_gateway[1]+"/"+device_gateway[2]+"/"+"1DeviceStatus"
+
+  db_instance = database_connection().connect_mongo()
+  collection = db_instance[device_gateway]
+  cur = collection.find({}).sort("_id",-1).limit(1)
+  print(cur)
+  return
 #<------------------------------------------ insert operation --------------------------------------------------->
 
-def info_insert_data(machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list):
+def info_insert_data(machine_gateway,machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list):
   db_instance = database_connection().connect_sql()
   cursor = db_instance.cursor()
   machine_id = machine_id[0]
@@ -59,6 +70,7 @@ def info_insert_data(machine_id,shift_date,calendar_date,part_id,tool_id,ppc,sta
     production = ppc
     correction_min_counts = "-"+str(production)
   else:
+    # find_device_status(machine_gateway)
     production = "Null"
     correction_min_counts = production
   corrections = 0
@@ -188,7 +200,7 @@ def process_data_pdm_info(machine,hour,active_records, pdm_start_time, pdm_end_t
 
   shot_count = len(present_data)
   ppc = int(shot_count) * int(part_produced_cycle)
-  info_insert_data(machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list)
+  info_insert_data(machine,machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list)
   
 #<------------------------------------- process data downtime ------------------------------------------------>
 
@@ -511,6 +523,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
       start_time = str(end_time)
       print("Data stored in downtime event tables......")
   else:
+    temp_var_find=0
     for idx, s_time in enumerate(shiftTimings):
       if(datetime.datetime.strptime(str(s_time), "%H:%M:%S").time().hour == (datetime.datetime.strptime(str(pdm_end_time), "%H:%M:%S").time().hour)):
         db_instance = database_connection().connect_sql()
@@ -518,6 +531,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
         sql_query2 = "SELECT * FROM `pdm_events` WHERE `machine_id`= %s and `shift_date`<=%s ORDER BY r_no DESC LIMIT 1"
         cursor.execute(sql_query2,(machine_id,shift_date,))
         previous_data = cursor.fetchone()
+        temp_var_find=1
         if previous_data is not None:
           previous_start = previous_data[9]
           previous_end = previous_data[10]
@@ -584,31 +598,31 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
           val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
           cursor.execute(sql_query,val)
           db_instance.commit()
-      else:
-        db_instance = database_connection().connect_sql()
-        cursor = db_instance.cursor()
-        sql_query2 = "SELECT * FROM `pdm_events` WHERE `machine_id`= %s and `shift_date`<=%s ORDER BY r_no DESC LIMIT 1"
-        cursor.execute(sql_query2,(machine_id,shift_date,))
-        previous_data = cursor.fetchone()
-        if previous_data is not None:
-          previous_start = previous_data[9]
-          previous_end = previous_data[10]
-          previous_duration = previous_data[13]
-          previous_rno = previous_data[0]
-          previous_event_id = previous_data[1]
-          
-          duration = find_duration(shift_date,shift_date,previous_start,pdm_end_time)
-          end_time =pdm_end_time
+    if(temp_var_find !=1):
+      db_instance = database_connection().connect_sql()
+      cursor = db_instance.cursor()
+      sql_query2 = "SELECT * FROM `pdm_events` WHERE `machine_id`= %s and `shift_date`<=%s ORDER BY r_no DESC LIMIT 1"
+      cursor.execute(sql_query2,(machine_id,shift_date,))
+      previous_data = cursor.fetchone()
+      if previous_data is not None:
+        previous_start = previous_data[9]
+        previous_end = previous_data[10]
+        previous_duration = previous_data[13]
+        previous_rno = previous_data[0]
+        previous_event_id = previous_data[1]
+        
+        duration = find_duration(shift_date,shift_date,previous_start,pdm_end_time)
+        end_time =pdm_end_time
 
-          sql_query1 = "UPDATE `pdm_events` SET `end_time`=%s,`duration`=%s WHERE `r_no`=%s"
-          cursor.execute(sql_query1,(end_time,duration,previous_rno,))
+        sql_query1 = "UPDATE `pdm_events` SET `end_time`=%s,`duration`=%s WHERE `r_no`=%s"
+        cursor.execute(sql_query1,(end_time,duration,previous_rno,))
+        db_instance.commit()
+
+        # Update it in Reason mapping Table
+        if previous_data[12] != "Active":
+          sql_query2 = "UPDATE `pdm_downtime_reason_mapping` SET `end_time`=%s,`split_duration`=%s WHERE `machine_event_id`=%s"
+          cursor.execute(sql_query2,(end_time,duration,previous_event_id,))
           db_instance.commit()
-
-          # Update it in Reason mapping Table
-          if previous_data[12] != "Active":
-            sql_query2 = "UPDATE `pdm_downtime_reason_mapping` SET `end_time`=%s,`split_duration`=%s WHERE `machine_event_id`=%s"
-            cursor.execute(sql_query2,(end_time,duration,previous_event_id,))
-            db_instance.commit()
     print("Data stored in downtime event tables......")
   return
 
@@ -836,7 +850,7 @@ if __name__ == '__main__':
   shift_hours = [int(i.strftime("%H")) for i in shiftTimings]
   shift_min = [int(i.strftime("%M")) for i in shiftTimings]
   shift_list = getShiftList(shiftTimings)
-  hour = "2022-10-31 10:00:00"
+  hour = "2022-10-31 15:00:00"
   hour = datetime.datetime.strptime(hour, '%Y-%m-%d %H:%M:%S')
   #<---------------------- Loop break daywise ------------------------->
   while(True):
