@@ -232,8 +232,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
     part_id = shift[0][4]
     tool_id = shift[0][5]
 
-  # l= len(present_data)
-  l=0
+  l= len(present_data)
   s=0 
   c = 0
   device_state = find_device_status(machine)
@@ -259,7 +258,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
       end_date = previous_date
       k=j+1
       event = present_data[j]['status']
-      if event == "Active":    
+      if event == "Active":
         while (k<l):
           timestamp = present_data[k]['gateway_time'].split(" ")
           end_time = timestamp[1]
@@ -537,6 +536,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
       start_time = str(end_time)
       print("Data stored in downtime event tables......")
   else:
+    print("No Data Conditions")
     # device_state = find_device_status(machine)
     # time_update = str(device_state['updated_on']).split(" ")
     # time_update=time_update[0]+" "+time_update[1]
@@ -731,6 +731,17 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
             val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
             cursor.execute(sql_query,val)
             db_instance.commit()
+      else:
+        start_time = pdm_start_time
+        end_time = pdm_end_time 
+        shot_count = 0
+        event = "Offline"
+        duration = 0
+        shift_id = getShiftid(shiftTimings,shift_list,start_time)
+        sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
+        val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+        cursor.execute(sql_query,val)
+        db_instance.commit()
     print("Data stored in downtime event tables......")
   return
 
@@ -958,7 +969,7 @@ if __name__ == '__main__':
   shift_hours = [int(i.strftime("%H")) for i in shiftTimings]
   shift_min = [int(i.strftime("%M")) for i in shiftTimings]
   shift_list = getShiftList(shiftTimings)
-  hour = "2022-11-02 11:00:00"
+  hour = "2022-11-04 10:00:00"
   hour = datetime.datetime.strptime(hour, '%Y-%m-%d %H:%M:%S')
   #<---------------------- Loop break daywise ------------------------->
   while(True):
