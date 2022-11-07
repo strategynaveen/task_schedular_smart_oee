@@ -152,6 +152,12 @@ def update_past_rec(offline_gateway,past_data):
         sql_query1 = "UPDATE `pdm_production_info` SET `actual_shot_count`=%s,`production`=%s, `correction_min_counts`=%s,`rejection_max_counts`=%s,`corrections`=%s,`rejections`=%s,`correction_notes`=%s,`rejections_notes`=%s,`reject_reason`=%s WHERE `r_no`=%s"
         cursor.execute(sql_query1,(shot_count,production,production,production,"0","0","","","",previous_data[0],))
         db_instance.commit()
+
+        # Update all the child records respective of the parent record.
+        sql_query1 = "UPDATE `pdm_production_info` SET `actual_shot_count`=%s,`production`=%s, `correction_min_counts`=%s,`rejection_max_counts`=%s,`corrections`=%s,`rejections`=%s,`correction_notes`=%s,`rejections_notes`=%s,`reject_reason`=%s WHERE `hierarchy`=%s"
+        cursor.execute(sql_query1,(shot_count,production,production,production,"0","0","","","",previous_data[1],))
+        db_instance.commit()
+
       print("Record updated"," ",date_time_rec.date()," ",s_time)
     else:
       break
@@ -673,7 +679,7 @@ def process_data(offline_gateway,collection, duration_start = 0, duration_end = 
     if(status == "Active"):
       for content in group:
         active_records.append(content)
-  # process_data_pdm_info(offline_gateway,active_records,pdm_start_time,pdm_end_time,len(collection))
+  process_data_pdm_info(offline_gateway,active_records,pdm_start_time,pdm_end_time,len(collection))
 
   collection.sort(key=lambda x: x["gateway_time"])
 
