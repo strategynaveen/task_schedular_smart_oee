@@ -60,7 +60,7 @@ def find_device_status(machine_gateway):
 def stored_fun_call(production_id):
   db_instance = database_connection().connect_sql()
   cursor = db_instance.cursor()
-  cursor.callproc('example_store', [production_id, ])
+  cursor.callproc('child_records_create', [production_id, ])
   # for result in cursor.stored_results():
   #   pass
   #   print(result.fetchall())
@@ -83,26 +83,21 @@ def info_insert_data(production_id,machine_gateway,machine_id,shift_date,calenda
   tool_id = tool_id
   actual_shot_count = shot_count
   if no_data >= 1:
-    production = ppc
-    correction_min_counts = "-"+str(production)
+    production = 0
   else:
     device_state = find_device_status(machine_gateway)
     if device_state['device_status'] == "Offline":
       production = "Null"
     else:
       production =0
-    correction_min_counts = production
-  corrections = 0
-  correction_notes = " "
+  correction_min_counts = "-"+str(production)
   rejection_max_count = production
-  rejections = 0
-  rejections_notes = " "
-  reject_reason = ''
-  last_updated_by = ''
-
-  sql_query = "INSERT INTO `pdm_production_info`( `production_event_id`,`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`, `part_id`, `tool_id`, `actual_shot_count`, `production`, `correction_min_counts`, `corrections`,`correction_notes`, `rejection_max_counts`, `rejections`, `rejections_notes`, `reject_reason`, `last_updated_by`) VALUES(%s  ,%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s )"
-  val = (production_id,machine_id , calendar_date , shift_date , shift_id , start_time , end_time , part_id , tool_id , actual_shot_count , production , correction_min_counts , corrections , correction_notes , rejection_max_count , rejections , rejections_notes , reject_reason , last_updated_by )
-
+  if production != "Null":
+    sql_query = "INSERT INTO `pdm_production_info`( `production_event_id`,`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`, `part_id`, `tool_id`, `actual_shot_count`, `production`, `correction_min_counts`,`rejection_max_counts`,`hierarchy`) VALUES(%s  ,%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s)"
+    val = (production_id, machine_id , calendar_date , shift_date , shift_id , start_time , end_time , part_id , tool_id , actual_shot_count , production , correction_min_counts ,rejection_max_count,"parent")
+  else:
+    sql_query = "INSERT INTO `pdm_production_info`( `production_event_id`,`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`, `part_id`, `tool_id`, `actual_shot_count`,`hierarchy`) VALUES(%s , %s  ,%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s)"
+    val = (production_id, machine_id , calendar_date , shift_date , shift_id , start_time , end_time , part_id , tool_id , actual_shot_count,"parent")
   cursor.execute(sql_query,val)
   db_instance.commit()
   # Stored procedure function call for create the child records
@@ -218,22 +213,18 @@ def find_duration(start_date,end_date,start_time,end_time):
 def id_generation():
   db = database_connection().connect_sql()
   mycursor= db.cursor()
-  sql = "SELECT id_generation();"
+  sql = "SELECT production_event_id_generation();"
   mycursor.execute(sql)
   count = mycursor.fetchall()
-  print(len(count))
   # print(count[0][0])
   if len(count) > 0:
     tmp_pid = count[0][0]
-    # tmp_pid = tmp_pid+1
-    # pid = 1000+tmp_pid
     pid = "PE"+str(tmp_pid)
   else:
     tmp_pid = 0
     tmp_pid = tmp_pid+1
     pid = 1000+tmp_pid
     pid = "PE"+str(pid)
-  print(pid)
   return pid
 
 #<------------------------------------- process data pdm_info------------------------------------------------>
@@ -279,6 +270,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
   #*******************split inactive records and group active records to find duration****************************** 
   shift = getTabledetails(machine)
   machine_id = shift[0][0]
+  source = "Main"
 
   end_time_tmp =datetime.datetime.strptime(((datetime.datetime.strptime(str(hour), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S")
   shift_date = getShiftdate(end_time_tmp)
@@ -295,7 +287,7 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
   else:
     part_id = shift[0][4]
     tool_id = shift[0][5]
-    
+
   l= len(present_data)
   s=0
   c = 0
@@ -560,14 +552,16 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
 
                 duration = find_duration(end_date,end_date,start_time,s_time)
                 # Newly added condition
-                sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-                val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+                timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+                sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` ,`timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s, %s)"
+                val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source,timestamp_t)
                 cursor.execute(sql_query,val)
               
             else:
               # Insert the current shift record of last record
-              sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-              val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+              timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+              sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source`, `timestamp` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s, %s)"
+              val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source, timestamp_t)
               cursor.execute(sql_query,val)
           
             start_time=s_time
@@ -578,21 +572,23 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
             end_time_t = str(calendar_date)+" "+str(end_time)
             # shift_date = getShiftdate(datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S'))
             shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))        
-
-            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+            timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` , `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s ,%s)"
+            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source, timestamp_t)
             cursor.execute(sql_query,val)
             db_instance.commit()
             tmp_var2=1
             break
         if ((temp_var !=1) and (tmp_var2 !=1)):
-          sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-          val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+          timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+          sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` , `timestamp` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s, %s)"
+          val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source , timestamp_t )
           cursor.execute(sql_query,val)
           db_instance.commit()
       elif(temp_var !=1 and flag_s!=1):
-        sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-        val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+        timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+        sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` , `timestamp` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s, %s)"
+        val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source, timestamp_t )
         cursor.execute(sql_query,val)
         db_instance.commit()
       
@@ -666,8 +662,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
             event = "Offline"
             
             if (datetime.datetime.strptime(str(start_time), "%H:%M:%S").time().hour == time_update_time and date_temp==datetime.datetime.strptime(str(start_time), "%H:%M:%S").date()):
-              sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-              val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+              timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+              sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` , `source`, `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s ,%s)"
+              val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source, timestamp_t)
               cursor.execute(sql_query,val)
               db_instance.commit()
 
@@ -681,8 +678,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
           end_time_t = str(calendar_date)+" "+str(end_time)
           shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
 
-          sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-          val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+          timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+          sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` ,`timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s ,%s)"
+          val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id,source ,timestamp_t)
           cursor.execute(sql_query,val)
           db_instance.commit()
         else:
@@ -697,8 +695,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
             start_time =shift_start_duration;
             end_time = s_time
             event=  "Inactive"; #This will consider as default.
-            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+            timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`,`source`, `timestamp` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s,%s , %s)"
+            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id,source , timestamp_t)
             cursor.execute(sql_query,val)
             db_instance.commit()
           else:
@@ -711,8 +710,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
               end_time = s_time
             duration = find_duration(shift_date,last_status_time[0],start_time,last_status_time[1])
             event=  "Inactive"; #This will consider as default.
-            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+            timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source`, `timestamp` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s,%s,%s)"
+            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id , source , timestamp_t)
             cursor.execute(sql_query,val)
             db_instance.commit()
 
@@ -721,8 +721,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
             duration = find_duration(shift_date,last_status_time[0],start_time,end_time)
             event = "Offline"
             if (datetime.datetime.strptime(str(start_time), "%H:%M:%S").time().hour == time_update_time and date_temp==datetime.datetime.strptime(str(start_time), "%H:%M:%S").date()):
-              sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-              val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+              timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+              sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`,`source`, `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s,%s)"
+              val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source, timestamp_t)
               cursor.execute(sql_query,val)
               db_instance.commit()
           
@@ -733,8 +734,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
           shift_id = getShiftid(shiftTimings,shift_list,start_time)
           end_time_t = str(calendar_date)+" "+str(end_time)
           shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
-          sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-          val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+          timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+          sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` , `source`, `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s,%s,%s)"
+          val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id,source, timestamp_t)
           cursor.execute(sql_query,val)
           db_instance.commit()
     if(temp_var_find !=1):
@@ -791,8 +793,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
           event = "Offline"
           shot_count =0;
           if (datetime.datetime.strptime(str(start_time), "%H:%M:%S").time().hour == time_update_time and date_temp==datetime.datetime.strptime(str(start_time), "%H:%M:%S").date()):
-            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+            timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+            sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` , `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s ,%s, %s)"
+            val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id, source , timestamp_t)
             cursor.execute(sql_query,val)
             db_instance.commit()
       else:
@@ -802,8 +805,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
         event = "Offline"
         duration = 0
         shift_id = getShiftid(shiftTimings,shift_list,start_time)
-        sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s)"
-        val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id )
+        timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+        sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`,`source`, `timestamp` ) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s , %s)"
+        val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id,source , timestamp_t)
         cursor.execute(sql_query,val)
         db_instance.commit()
     print("Data stored in downtime event tables......")
@@ -1033,7 +1037,7 @@ if __name__ == '__main__':
   shift_hours = [int(i.strftime("%H")) for i in shiftTimings]
   shift_min = [int(i.strftime("%M")) for i in shiftTimings]
   shift_list = getShiftList(shiftTimings)
-  hour = "2022-11-04 10:00:00"
+  hour = "2022-11-07 10:00:00"
   hour = datetime.datetime.strptime(hour, '%Y-%m-%d %H:%M:%S')
   #<---------------------- Loop break daywise ------------------------->
   while(True):
