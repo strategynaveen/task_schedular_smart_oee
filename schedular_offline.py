@@ -141,12 +141,12 @@ def update_past_rec(offline_gateway,past_data):
       # # Find the part produced cycle
       if previous_data is not None:
         sql_query = "SELECT * FROM `settings_part_current` WHERE `part_id`= %s"
-        cursor.execute(sql_query,(previous_data[9],))
+        cursor.execute(sql_query,(previous_data[8],))
         part_data = cursor.fetchone()
         # Shot Count
         shot_count = int(total_rec) + int(previous_data[11])
         # Production value
-        production= shot_count*part_data[3]
+        production= int(shot_count)*int(part_data[3])
 
         # Update the production values
         sql_query1 = "UPDATE `pdm_production_info` SET `actual_shot_count`=%s,`production`=%s, `correction_min_counts`=%s,`rejection_max_counts`=%s,`corrections`=%s,`rejections`=%s,`correction_notes`=%s,`rejections_notes`=%s,`reject_reason`=%s WHERE `r_no`=%s"
