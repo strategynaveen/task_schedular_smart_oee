@@ -55,9 +55,22 @@ def find_device_status(machine_gateway):
   for i in cur:
     device_status = i
   return device_status
+
+# <----------------------------------------Stored Procedure function------------------------------------------->
+def stored_fun_call(production_id):
+  db_instance = database_connection().connect_sql()
+  cursor = db_instance.cursor()
+  cursor.callproc('example_store', [production_id, ])
+  # for result in cursor.stored_results():
+  #   pass
+  #   print(result.fetchall())
+  db_instance.commit()
+  # if(db_instance.commit()):
+  #   print("stored procedure executed")
+
 #<------------------------------------------ insert operation --------------------------------------------------->
 
-def info_insert_data(machine_gateway,machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list):
+def info_insert_data(production_id,machine_gateway,machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list):
   db_instance = database_connection().connect_sql()
   cursor = db_instance.cursor()
   machine_id = machine_id[0]
@@ -87,12 +100,13 @@ def info_insert_data(machine_gateway,machine_id,shift_date,calendar_date,part_id
   reject_reason = ''
   last_updated_by = ''
 
-  sql_query = "INSERT INTO `pdm_production_info`( `machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`, `part_id`, `tool_id`, `actual_shot_count`, `production`, `correction_min_counts`, `corrections`,`correction_notes`, `rejection_max_counts`, `rejections`, `rejections_notes`, `reject_reason`, `last_updated_by`) VALUES(%s  ,%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s )"
-  val = ( machine_id , calendar_date , shift_date , shift_id , start_time , end_time , part_id , tool_id , actual_shot_count , production , correction_min_counts , corrections , correction_notes , rejection_max_count , rejections , rejections_notes , reject_reason , last_updated_by )
+  sql_query = "INSERT INTO `pdm_production_info`( `production_event_id`,`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`, `part_id`, `tool_id`, `actual_shot_count`, `production`, `correction_min_counts`, `corrections`,`correction_notes`, `rejection_max_counts`, `rejections`, `rejections_notes`, `reject_reason`, `last_updated_by`) VALUES(%s  ,%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s ,%s )"
+  val = (production_id,machine_id , calendar_date , shift_date , shift_id , start_time , end_time , part_id , tool_id , actual_shot_count , production , correction_min_counts , corrections , correction_notes , rejection_max_count , rejections , rejections_notes , reject_reason , last_updated_by )
 
   cursor.execute(sql_query,val)
   db_instance.commit()
-
+  # Stored procedure function call for create the child records
+  stored_fun_call(production_id)
   print("Data stored in production Info Table.....")
   return
 
@@ -150,7 +164,7 @@ def getTabledetails(machine):
 
   db = database_connection().connect_sql()
   mycursor= db.cursor()
-  query = "SELECT i.machine_id,t.machine_id,t.shift_date,t.event_start_time,t.part_id,t.tool_id,p.part_produced_cycle FROM settings_machine_iot as i INNER JOIN pdm_tool_changeover_log as t ON t.machine_id = i.machine_id INNER JOIN settings_part_current as p ON p.part_id=t.part_id WHERE i.iot_gateway_topic = %s GROUP BY t.shift_date,t.event_start_time ORDER BY t.shift_date DESC,t.event_start_time DESC LIMIT 1;"
+  query = "SELECT t.tool_changeover_id FROM pdm_tool_changeover as t INNER JOIN settings_machine_iot as s on t.machine_id=s.machine_id WHERE s.iot_gateway_topic = %s ORDER by t.last_updated_on DESC limit 1;"
   mycursor.execute(query,(machine,))
   shift = mycursor.fetchall()
   if len(shift)==0:
@@ -159,6 +173,27 @@ def getTabledetails(machine):
     query ="SELECT machine_id FROM `settings_machine_iot` WHERE `iot_gateway_topic`= %s ;"
     mycursor.execute(query,(machine,))
     shift = mycursor.fetchall()
+    
+  elif(len(shift)>0):
+    mycursor = db.cursor()
+    sql = "SELECT * FROM tool_changeover WHERE id=%s;"
+    tool_chid = shift[0][0]
+    mycursor.execute(sql,(tool_chid,))
+    shift_tmp = mycursor.fetchall()
+    part_arr = [] 
+    for i in range(len(shift_tmp)):
+      part_arr.insert(i,shift_tmp[i][2])
+    part_str = ','.join(part_arr)
+    
+    pid = part_str
+    tid = shift_tmp[0][3]
+    estm = shift_tmp[0][5]
+    mid = shift_tmp[0][1]
+    sdate = shift_tmp[0][4]
+    shift_t = ()
+    shift_t = [shift_t+(mid,mid,sdate,estm,pid,tid)]
+
+    shift  = list(shift_t)
   return shift
 
 def find_duration(start_date,end_date,start_time,end_time):
@@ -177,6 +212,30 @@ def find_duration(start_date,end_date,start_time,end_time):
   duration = str(temp_min)+"."+str(temp_sec)
   return duration
 
+#<--------------------------------Prodcution event id generation function--------------------------------->
+
+# stored procedure function call
+def id_generation():
+  db = database_connection().connect_sql()
+  mycursor= db.cursor()
+  sql = "SELECT id_generation();"
+  mycursor.execute(sql)
+  count = mycursor.fetchall()
+  print(len(count))
+  # print(count[0][0])
+  if len(count) > 0:
+    tmp_pid = count[0][0]
+    # tmp_pid = tmp_pid+1
+    # pid = 1000+tmp_pid
+    pid = "PE"+str(tmp_pid)
+  else:
+    tmp_pid = 0
+    tmp_pid = tmp_pid+1
+    pid = 1000+tmp_pid
+    pid = "PE"+str(pid)
+  print(pid)
+  return pid
+
 #<------------------------------------- process data pdm_info------------------------------------------------>
 
 def process_data_pdm_info(machine,hour,active_records, pdm_start_time, pdm_end_time,no_data,shiftTimings,shift_list):
@@ -187,26 +246,31 @@ def process_data_pdm_info(machine,hour,active_records, pdm_start_time, pdm_end_t
   shift_date = getShiftdate(end_time_tmp)
   calendar_date=str(datetime.datetime.strptime(str(hour), "%Y-%m-%d %H:%M:%S").date())
 
-  # This condition will execute when no tool changeover action has occured for that particular machine(It will take No Tool, No part reference)
-  if len(shift[0])<=1:
-    db_instance = database_connection().connect_sql()
-    cursor = db_instance.cursor()
-    cursor.execute("SELECT part_id,tool_id,part_produced_cycle FROM `settings_part_current` WHERE part_name='No Part' ;")
-    partDetails = cursor.fetchone()
-    part_id =partDetails[0]
-    tool_id = partDetails[1]
-    part_produced_cycle = partDetails[2]
-  else:
-    part_id = shift[0][4]
-    tool_id = shift[0][5]
-    part_produced_cycle = shift[0][6]
+  # # This condition will execute when no tool changeover action has occured for that particular machine(It will take No Tool, No part reference)
+  # if len(shift[0])<=1:
+  #   db_instance = database_connection().connect_sql()
+  #   cursor = db_instance.cursor()
+  #   cursor.execute("SELECT part_id,tool_id,part_produced_cycle FROM `settings_part_current` WHERE part_name='No Part' ;")
+  #   partDetails = cursor.fetchone()
+  #   part_id =partDetails[0]
+  #   tool_id = partDetails[1]
+  #   part_produced_cycle = partDetails[2]
+  # else:
+  #   part_id = shift[0][4]
+  #   tool_id = shift[0][5]
+  #   part_produced_cycle = shift[0][6]
+  part_id = "PT1001"
+  tool_id = "TL1001"
+  part_produced_cycle = 0
 
   start_time = pdm_start_time
   end_time = pdm_end_time
 
   shot_count = len(present_data)
   ppc = int(shot_count) * int(part_produced_cycle)
-  info_insert_data(machine,machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list)
+  # Production id will be generated from Schedular
+  production_id = id_generation()
+  info_insert_data(production_id,machine,machine_id,shift_date,calendar_date,part_id,tool_id,ppc,start_time,end_time,shot_count,no_data,shiftTimings,shift_list)
   
 #<------------------------------------- process data downtime ------------------------------------------------>
 
@@ -231,9 +295,9 @@ def process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_tim
   else:
     part_id = shift[0][4]
     tool_id = shift[0][5]
-
+    
   l= len(present_data)
-  s=0 
+  s=0
   c = 0
   device_state = find_device_status(machine)
   time_update = str(device_state['updated_on']).split(" ")
