@@ -307,6 +307,7 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
   time_update = datetime.datetime.strptime(str(time_update), '%Y-%m-%d %H:%M:%S')
   time_update_date = time_update.date()
   time_update_time = time_update.time().hour
+
   # date_temp = datetime.datetime.strptime(past_data[0]['gateway_time'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
   device_status_net = device_state['device_status']
   device_status_pow = device_state['meta_data']['is_device_powered_off']
@@ -416,10 +417,13 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
             previous_duration = previous_data[13]
             previous_rno = previous_data[0]
             previous_event_id = previous_data[1]
-
+            
             temp_start = previous_start.split(":")
             if device_status_net=="Online":
-              if c==0:
+              calendar_date=datetime.datetime.now().strftime("%Y-%m-%d")
+              calendar_date= calendar_date+" "+"00:00:00"
+              calendar_date =datetime.datetime.strptime(str(calendar_date), '%Y-%m-%d %H:%M:%S').date()
+              if (c==0 and datetime.datetime.strptime(str(pdm_start_time), "%H:%M:%S").time().hour == time_update_time and time_update_date == calendar_date):
                 source = "Offline"
                 # Temporarly Hiding
                 # if (datetime.datetime.strptime(str(start_time), "%H:%M:%S").time().hour == time_update_time and date_temp==datetime.datetime.strptime(str(calendar_date), "%Y-%m-%d").date()):
@@ -427,7 +431,6 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
                   time_update_end = str(device_state['meta_data']['device_off_start_time']).split(" ")
                   time_update_end=time_update_end[0]+" "+time_update_end[1]
                   time_update_end = datetime.datetime.strptime(str(time_update_end), '%Y-%m-%d %H:%M:%S')
-
                   time_update_start = previous_data[2]+" "+previous_end
                   time_update_start = datetime.datetime.strptime(str(time_update_start), '%Y-%m-%d %H:%M:%S')
                   if (time_update_start.date() == time_update_end.date() and time_update_start.time() >= time_update_end.time()):
@@ -478,7 +481,6 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
                       cursor.execute(sql_query,val)
                       db_instance.commit()
                     else:
-                      print("Else Here")
                       # This condition will execute when the hour is exceed the shift start or end hour.
                       start_time = previous_data[10] #End time of the previous record.
                       event_id = previous_data[1]
@@ -519,7 +521,6 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
                           db_instance.commit()
                           break
                   else:
-                    print("Here Else!")
                     start_time = previous_data[10] #End time of the previous record.
                     event_id = previous_data[1]
                     calendar_date_temp = previous_data[2]
@@ -598,25 +599,27 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
                               break
                           break
                 c=1  
-              # Update the offline Data
-              source = "Offline"
-              db_instance = database_connection().connect_sql()
-              cursor = db_instance.cursor()
-              timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
-              sql_query2 = "SELECT * FROM `pdm_events` WHERE `machine_id`= %s and `shift_date`<=%s and `timestamp`<=%s ORDER BY r_no DESC LIMIT 1"
-              cursor.execute(sql_query2,(machine_id,shift_date,timestamp_t,))
-              previous_data = cursor.fetchone()
-              if previous_data is not None:
-                start_time = start_time_g
-                end_time = end_time_g
-                previous_data_t=previous_data
-                previous_start = previous_data[9]
-                previous_end = previous_data[10]
-                previous_end_t =  previous_data[10]
-                previous_duration = previous_data[13]
-                previous_rno = previous_data[0]
-                previous_event_id = previous_data[1]
+            # Update the offline Data
+            source = "Offline"
+            db_instance = database_connection().connect_sql()
+            cursor = db_instance.cursor()
+            timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
+            sql_query2 = "SELECT * FROM `pdm_events` WHERE `machine_id`= %s and `shift_date`<=%s and `timestamp`<=%s ORDER BY r_no DESC LIMIT 1"
+            cursor.execute(sql_query2,(machine_id,shift_date,timestamp_t,))
+            previous_data = cursor.fetchone()
+            if previous_data is not None:
+              start_time = start_time_g
+              end_time = end_time_g
+              previous_data_t=previous_data
+              previous_start = previous_data[9]
+              previous_end = previous_data[10]
+              previous_end_t =  previous_data[10]
+              previous_duration = previous_data[13]
+              previous_rno = previous_data[0]
+              previous_event_id = previous_data[1]
 
+              # If previous event is same as current event, do not do anything in offline schedular.....
+              if previous_data[12] != event_g:
                 end_time_t = start_time
                 shift_date = previous_data[3]
                 duration = find_duration(shift_date,shift_date,previous_start,end_time_t)
@@ -644,8 +647,8 @@ def process_data_pdm_downtime(offline_gateway,collection,pdm_start_time,pdm_end_
                 val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event_g,duration , "0" , "0" ,part_id, tool_id , source , timestamp_t)
                 cursor.execute(sql_query,val)
                 db_instance.commit()
-              start_time_g = end_time_g
-          print("Data stored in downtime event tables......")
+            start_time_g = end_time_g
+        print("Data stored in downtime event tables......")
       else:
         break
   return
