@@ -23,7 +23,7 @@ class database_connection:
       self.sqldb = mysql.connector.connect(host = self.sql_host,
                                           user = self.sql_user,
                                           password = self.sql_password,
-                                          database = "S1002")
+                                          database = "S1001")
       return self.sqldb
 
     except:
@@ -835,10 +835,10 @@ if __name__ == '__main__':
   #<---------------------- Loop break daywise --------sss----------------->
   while(True):
     now = datetime.datetime.now() # Take current time to check the current shift hours
-    if(int(now.strftime("%M"))>=0): # you can change time here to run the code
+    if(int(now.strftime("%M"))==0): # you can change time here to run the code
   #<------------------- Site wise data processing ------------------->
       print("trigger")
-      offline = "/chennai/S1001/offline/1"
+      offline = "/chennai/S1001/offline"
       collection = getRawData(offline)
       # print(len(collection))
       process_data(offline,collection, duration_start = 0, duration_end = 0)
