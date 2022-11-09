@@ -1,0 +1,41 @@
+CREATE TRIGGER `update_production` BEFORE UPDATE ON `pdm_production_info`
+ FOR EACH ROW BEGIN
+    DECLARE part_cycle INT;
+    DECLARE shot_count INT;
+    DECLARE part CHARACTER(100);
+    IF !(NEW.part_id <=> OLD.part_id) OR !(NEW.actual_shot_count <=> OLD.actual_shot_count) THEN
+        SET part_cycle=0;
+        SET part=OLD.part_id;
+        SET shot_count = OLD.actual_shot_count;
+        # For finding the part id if updated
+        IF !(NEW.part_id <=> OLD.part_id) THEN
+            SET part = NEW.part_id;
+        ELSE
+            SET part = OLD.part_id;
+        END IF;
+        # For finding the Actual shot count
+        IF !(NEW.actual_shot_count <=> OLD.actual_shot_count) THEN
+            SET shot_count = NEW.actual_shot_count;
+        ELSE
+            SET shot_count = OLD.actual_shot_count;
+        END IF;
+        SELECT 
+            part_produced_cycle
+        INTO
+            part_cycle
+        FROM
+            settings_part_current
+        WHERE
+            part_id = part;
+            
+        SET NEW.`production` =part_cycle * shot_count;
+        SET NEW.`actual_shot_count` = shot_count;
+        SET NEW.`correction_min_counts` = part_cycle * shot_count;
+        SET NEW.`rejection_max_counts` = part_cycle * shot_count;
+        SET NEW.`rejections`=NULL;
+        SET NEW.`corrections`=NULL;
+        SET NEW.`correction_notes`=NULL;
+        SET NEW.`rejections_notes` = NULL;
+        SET NEW.`reject_reason`=NULL;
+    END IF;
+END
