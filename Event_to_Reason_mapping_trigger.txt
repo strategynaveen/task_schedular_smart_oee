@@ -1,0 +1,48 @@
+CREATE TRIGGER `generate_event_id` BEFORE INSERT ON `pdm_events`
+ FOR EACH ROW BEGIN
+	DECLARE x INT;
+    DECLARE y CHARACTER(100);
+    DECLARE z CHARACTER(100);
+ 
+    SELECT
+      downtime_reason_id
+    INTO
+      x
+    FROM
+      settings_downtime_reasons
+    WHERE
+      downtime_category = 'Unplanned'
+    AND 
+      downtime_reason='Unnamed';
+        
+   	SELECT 
+    	tool_id,part_id
+    INTO
+    	y,z
+    FROM
+    	pdm_tool_changeover_log
+    WHERE
+    	machine_id = NEW.machine_id
+    GROUP BY
+    	shift_date , event_start_time
+    ORDER BY
+    	shift_date DESC , event_start_time DESC
+    LIMIT 1;
+    
+    SET NEW.machine_event_id = CONCAT("ME",(SELECT COUNT(machine_event_id) FROM pdm_events)+1000+1);
+   	
+    IF y IS NULL THEN
+   		SELECT 
+    		tool_id,part_id
+    	INTO
+    		y,z
+    	FROM
+    		settings_part_current
+    	WHERE
+    		part_name = "No Part";
+    END IF;
+    
+    IF NEW.event != "Active" THEN
+    	INSERT INTO pdm_downtime_reason_mapping(machine_event_id,machine_id,split_id,calendar_date,shift_date,Shift_id,start_time,end_time,downtime_reason_id,split_duration,tool_id,part_id,notes,last_updated_by)VALUES(NEW.machine_event_id,NEW.machine_id,0,NEW.calendar_date,NEW.shift_date,NEW.shift_id,NEW.start_time,NEW.end_time,x,NEW.duration,New.tool_id,New.part_id,"","");
+    END IF;
+END
