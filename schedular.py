@@ -227,8 +227,15 @@ def process_data_pdm_info(machine,active_records, pdm_start_time, pdm_end_time,n
   present_data,past_data,future_data = split_past_future(active_records)
   shift = getTabledetails(machine)
   machine_id = shift[0]
-  shift_date = getShiftdate()
   calendar_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+  start_time = pdm_start_time
+  end_time = pdm_end_time
+  
+  end_time_t = str(calendar_date)+" "+str(end_time)
+  end_time_tmp = datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S')
+  shift_date = getShiftdate(end_time_tmp)
+
   # calendar_date="2022-10-13"
   # This condition will execute when no tool changeover action has occured for that particular machine(It will take No Tool, No part reference)
   # if len(shift[0])<=1:
@@ -249,9 +256,6 @@ def process_data_pdm_info(machine,active_records, pdm_start_time, pdm_end_time,n
   tool_id = "TL1001"
   part_produced_cycle = 0
 
-  start_time = pdm_start_time
-  end_time = pdm_end_time
-
   shot_count = len(present_data)
   ppc = int(shot_count) * int(part_produced_cycle)
   # Production id will be generated from Schedular
@@ -267,8 +271,11 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
   shift = getTabledetails(machine)
   machine_id = shift[0][0]
   source = "Main"
-  shift_date = getShiftdate()
   calendar_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+  end_time_t = str(calendar_date)+" "+str(pdm_end_time)
+  end_time_tmp = datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S')
+  shift_date = getShiftdate(end_time_tmp)
 
   #  Check whether the machine has the minimum of one tool changeover else it take default No Tool, No Part from Parts
   if len(shift[0])<=1:
@@ -563,9 +570,8 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
             shift_id = getShiftid(shiftTimings,shift_list,start_time)
 
             end_time_t = str(calendar_date)+" "+str(end_time)
-            # shift_date = getShiftdate(datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S'))
-            # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))        
-            shift_date = getShiftdate()
+            shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+            
 
             timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
             sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` , `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s ,%s)"
@@ -647,9 +653,9 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
             end_time=s_time
             duration = find_duration(shift_date,shift_date,start_time,end_time)
             shift_id = getShiftid(shiftTimings,shift_list,start_time)
+            
             end_time_t = str(calendar_date)+" "+str(end_time)
-            # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
-            shift_date = getShiftdate()
+            shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
             shot_count=0
             event = "Offline"
             
@@ -668,8 +674,8 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
           # Insert the records as next shift first rescord
           shift_id = getShiftid(shiftTimings,shift_list,start_time)
           end_time_t = str(calendar_date)+" "+str(end_time)
-          # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
-          shift_date = getShiftdate()
+          shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+          
           timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
           sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id`, `source` ,`timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s, %s ,%s)"
           val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id,source ,timestamp_t)
@@ -725,8 +731,8 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
           duration=0
           shift_id = getShiftid(shiftTimings,shift_list,start_time)
           end_time_t = str(calendar_date)+" "+str(end_time)
-          # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
-          shift_date = getShiftdate()
+          shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+          # shift_date = getShiftdate()
           timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
           sql_query = "INSERT INTO `pdm_events`(`machine_id`, `calendar_date`, `shift_date`, `shift_id`, `start_time`, `end_time`,`shot_count`, `event`, `duration`, `reason_mapped`, `is_split`,`part_id`,`tool_id` , `source`, `timestamp`) VALUES(%s ,%s ,%s , %s ,%s ,%s ,%s ,%s ,%s ,%s , %s, %s ,%s,%s,%s)"
           val = (machine_id , calendar_date , shift_date , shift_id , start_time , end_time ,shot_count , event,duration , "0" , "0" ,part_id, tool_id,source, timestamp_t)
@@ -781,8 +787,8 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
           end_time=pdm_end_time
           shift_id = getShiftid(shiftTimings,shift_list,start_time)
           end_time_t = str(calendar_date)+" "+str(end_time)
-          # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
-          shift_date = getShiftdate()
+          shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+          # shift_date = getShiftdate()
           duration=find_duration(shift_date,last_status_time[0],start_time,end_time)
           event = "Offline"
           shot_count =0;
@@ -906,12 +912,12 @@ def getMachineinfo(db_instance):
 
 #<------------------------------------- Get shift date -------------------------------------------------->
 
-def getShiftdate():
+def getShiftdate(hour):
   shiftTimings = getShiftTimings(database_connection().connect_sql())
-  now = datetime.datetime.now()
-  shift_date = now.strftime("%Y-%m-%d")
-  if(int(now.strftime("%H")) <= int(shiftTimings[0].strftime("%H")) and int(now.strftime("%M")) <= int(shiftTimings[0].strftime("%M"))):
-    shift_date =  datetime.datetime.today() - datetime.timedelta(days=1)
+  hour_now = hour
+  shift_date = hour_now.strftime("%Y-%m-%d")
+  if(int(hour_now.strftime("%H")) <= int(shiftTimings[0].strftime("%H")) and int(hour_now.strftime("%M")) <= int(shiftTimings[0].strftime("%M"))):
+    shift_date =  datetime.datetime.strptime(((datetime.datetime.strptime(str(hour), '%Y-%m-%d %H:%M:%S') - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S")
     shift_date = shift_date.strftime("%Y-%m-%d")
   return shift_date
 
