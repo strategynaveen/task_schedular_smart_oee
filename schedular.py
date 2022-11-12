@@ -570,7 +570,9 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
             shift_id = getShiftid(shiftTimings,shift_list,start_time)
 
             end_time_t = str(calendar_date)+" "+str(end_time)
-            shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+            shift_date = getShiftdate(datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S'))
+
+            # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
             
 
             timestamp_t = datetime.datetime.strptime(str(str(calendar_date)+" "+str(start_time)), '%Y-%m-%d %H:%M:%S')
@@ -655,7 +657,8 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
             shift_id = getShiftid(shiftTimings,shift_list,start_time)
             
             end_time_t = str(calendar_date)+" "+str(end_time)
-            shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+            shift_date = getShiftdate(datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S'))
+            # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
             shot_count=0
             event = "Offline"
             
@@ -787,8 +790,8 @@ def process_data_pdm_downtime(machine,collection,shiftTimings,pdm_start_time,shi
           end_time=pdm_end_time
           shift_id = getShiftid(shiftTimings,shift_list,start_time)
           end_time_t = str(calendar_date)+" "+str(end_time)
-          shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
-          # shift_date = getShiftdate()
+          # shift_date = getShiftdate(datetime.datetime.strptime(((datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S') + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")),"%Y-%m-%d %H:%M:%S"))
+          shift_date = getShiftdate(datetime.datetime.strptime(str(end_time_t), '%Y-%m-%d %H:%M:%S'))
           duration=find_duration(shift_date,last_status_time[0],start_time,end_time)
           event = "Offline"
           shot_count =0;
