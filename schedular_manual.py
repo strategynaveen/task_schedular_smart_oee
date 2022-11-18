@@ -11,7 +11,7 @@ import json
 #<-------------------------------------- Database connections ------------------------------------------------->
 
 class database_connection:
-  def __init__(self,sql_host = "165.22.208.52",sql_user="smartAd",sql_pass="WaDl@#smat1!",default_database="S1001",mongo_url ='mongodb://admin:smartories@165.22.208.52:27017/'):
+  def __init__(self,sql_host = "localhost",sql_user="smartAd",sql_pass="WaDl@#smat1!",default_database="S1001",mongo_url ='mongodb://admin:smartories@165.22.208.52:27017/'):
       self.sql_host = sql_host
       self.sql_user = sql_user
       self.sql_password = sql_pass
@@ -24,7 +24,7 @@ class database_connection:
                                           user = self.sql_user,
                                           password = self.sql_password,
                                           # database = self.database)
-                                          database = "S1002")
+                                          database = "S1001")
       return self.sqldb
 
     except:
@@ -159,7 +159,7 @@ def getTabledetails(machine):
 
   db = database_connection().connect_sql()
   mycursor= db.cursor()
-  query = "SELECT t.tool_changeover_id FROM pdm_tool_changeover as t INNER JOIN settings_machine_iot as s on t.machine_id=s.machine_id WHERE s.iot_gateway_topic = %s ORDER by t.last_updated_on DESC limit 1;"
+  query = "SELECT t.* FROM pdm_tool_changeover as t INNER JOIN settings_machine_iot as s on t.machine_id=s.machine_id WHERE s.iot_gateway_topic = %s ORDER BY t.shift_date DESC,t.event_start_time DESC LIMIT 1;"
   mycursor.execute(query,(machine,))
   shift = mycursor.fetchall()
   if len(shift)==0:
@@ -176,18 +176,17 @@ def getTabledetails(machine):
     mycursor.execute(sql,(tool_chid,))
     shift_tmp = mycursor.fetchall()
     part_arr = [] 
-    for i in range(len(shift_tmp)):
-      part_arr.insert(i,shift_tmp[i][2])
+    for i in shift_tmp:
+      part_arr.append(i[3])
     part_str = ','.join(part_arr)
-    
+
     pid = part_str
-    tid = shift_tmp[0][3]
-    estm = shift_tmp[0][5]
-    mid = shift_tmp[0][1]
-    sdate = shift_tmp[0][4]
+    tid = shift[0][3]
+    estm = shift[0][5]
+    mid = shift[0][1]
+    sdate = shift[0][4]
     shift_t = ()
     shift_t = [shift_t+(mid,mid,sdate,estm,pid,tid)]
-
     shift  = list(shift_t)
   return shift
 
@@ -845,9 +844,9 @@ def process_data(shiftTimings,hour,machine,collection,shift_list, duration_start
   collection.sort(key=lambda x: x["gateway_time"])
 
   process_data_pdm_downtime(machine,hour,collection,shiftTimings,pdm_start_time,shift_list,pdm_end_time)
-  print(datetime.datetime.strptime(str(end_time), "%Y-%m-%d %H:%M:%S").date())
-  print(pdm_start_time)
-  print(pdm_end_time)
+  # print(datetime.datetime.strptime(str(end_time), "%Y-%m-%d %H:%M:%S").date())
+  # print(pdm_start_time)
+  # print(pdm_end_time)
   print("Process Completed!")
 
   return 1
@@ -858,7 +857,8 @@ def process_data(shiftTimings,hour,machine,collection,shift_list, duration_start
 
 def getShiftinfo(db_instance):
   cursor = db_instance.cursor()
-  cursor.execute("SELECT LAST_VALUE(shift_log_id) AS shift FROM `settings_shift_management` ;")
+  # cursor.execute("SELECT LAST_VALUE(shift_log_id) AS shift FROM `settings_shift_management` ;")
+  cursor.execute("SELECT shift_log_id AS shift FROM `settings_shift_management` ORDER BY shift_log_id DESC LIMIT 1")
   shift_log_id = cursor.fetchall()
   shift_log_id = shift_log_id[len(shift_log_id)-1]
   shift_log_id = shift_log_id[0].split("f")
@@ -913,7 +913,6 @@ def getMachineinfo(db_instance):
   for count, value in enumerate(machines):
     arr.append(value)
   return arr  
-
 
 #<------------------------------------- on 12/07/2022 --------------------------------------------------->
 
@@ -1035,13 +1034,12 @@ def getShiftList(shiftTimings):
 #<------------------------------------- Main Function ------------------------------------------------>
 
 if __name__ == '__main__':
-
   shiftTimings = getShiftTimings(database_connection().connect_sql())
   machines = getMachineinfo(database_connection().connect_sql())
   shift_hours = [int(i.strftime("%H")) for i in shiftTimings]
   shift_min = [int(i.strftime("%M")) for i in shiftTimings]
   shift_list = getShiftList(shiftTimings)
-  hour = "2022-11-09 02:00:00"
+  hour = "2022-11-15 10:00:00"
   hour = datetime.datetime.strptime(hour, '%Y-%m-%d %H:%M:%S')
   #<---------------------- Loop break daywise ------------------------->
   while(True):

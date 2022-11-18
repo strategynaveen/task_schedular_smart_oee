@@ -1,0 +1,23 @@
+CREATE TRIGGER `default_toolchangeover` AFTER INSERT ON `settings_machine_current`
+ FOR EACH ROW BEGIN
+  DECLARE x CHARACTER(100);
+    DECLARE y CHARACTER(100);
+ 
+    SELECT
+      tool_changeover_id
+    INTO
+      x
+    FROM
+      pdm_tool_changeover
+    ORDER BY
+      tool_changeover_id DESC
+    LIMIT 1;
+    
+    IF x IS NULL THEN
+      SET y = 1001;
+    ELSE
+      SET y=x+1;
+    END IF;
+      INSERT INTO pdm_tool_changeover(tool_changeover_id ,machine_id,no_of_part,tool_id,last_updated_by)VALUES(y,NEW.machine_id,1,"TL1001",NEW.last_updated_by);
+        INSERT INTO tool_changeover(id,machine_id,part_id,part_order) VALUES(y,NEW.machine_id,"PT1001",1);
+END
