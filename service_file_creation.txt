@@ -1,0 +1,25 @@
+[Unit]
+Description= Mongodb Mail System Service
+ConditionPathExists=/root/Desktop/node_mail/node_mail.js
+After=network.target
+
+[Service]
+Type=simple
+LimitNOFILE=1024
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=0
+WorkingDirectory=/root/
+ExecStart= /usr/bin/sudo node /root/Desktop/node_mail/node_mail.js
+
+# make sure log directory exists and owned by syslog
+PermissionsStartOnly=true
+ExecStartPre=/bin/mkdir -p /var/log\node_mail_log
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=energymeter
+
+[Install]
+WantedBy=multi-user.target
+
+
